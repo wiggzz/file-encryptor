@@ -3,6 +3,7 @@ import tempfile
 import os
 
 from file_encryptor import convergence
+from file_encryptor.ex import AuthenticationError
 
 class TestConvergence(unittest.TestCase):
     def setUp(self):
@@ -85,3 +86,51 @@ class TestConvergence(unittest.TestCase):
             decrypted += chunk
 
         self.assertEqual(plaintext, decrypted)
+        
+    def test_authentication(self):
+        plaintext = self.contents(self.sample1)
+        
+        k,h = convergence.encrypt_file_inline(self.sample1, "test secret", True)
+        
+        convergence.decrypt_file_inline(self.sample1, k, h)
+    
+        self.assertEqual(plaintext, self.contents(self.sample1))
+    
+    def test_authentication_failed(self):
+        plaintext = self.contents(self.sample1)
+        
+        k,h = convergence.encrypt_file_inline(self.sample1, "test secret", True)
+        
+        # modify file
+        with open(self.sample1, "r+b") as f:
+            f.write("file changed!\n".encode())
+        
+        with self.assertRaises(AuthenticationError) as ex:
+            convergence.decrypt_file_inline(self.sample1, k, h)
+        
+        self.assertEqual(str(ex.exception),"Hash Message Authentication Code invalid.")
+        
+    def test_streaming_authenticated_decryption(self):
+        plaintext = self.contents(self.sample1)
+        
+        k,h = convergence.encrypt_file_inline(self.sample1, "test secret", True)
+        
+        decrypted = b""
+        for chunk in convergence.decrypt_generator(self.sample1, k, h):
+            decrypted += chunk
+        
+        self.assertEqual(plaintext,decrypted)
+    
+    def test_streaming_authenticated_decryption_failed(self):
+        k,h = convergence.encrypt_file_inline(self.sample1, "test secret", True)
+        
+        # modify file
+        with open(self.sample1, "ab") as f:
+            f.write("data added!\n".encode())
+        
+        decrypted = b""
+        with self.assertRaises(AuthenticationError) as ex:
+            for chunk in convergence.decrypt_generator(self.sample1, k, h):
+                decrypted += chunk
+        
+        self.assertEqual(str(ex.exception),"Hash Message Authentication Code invalid.")

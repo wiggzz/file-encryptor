@@ -1,2 +1,2 @@
 
-from file_encryptor import (convergence, key_generators)
+from . import convergence, key_generators, ex
